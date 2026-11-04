@@ -14,7 +14,8 @@ connector.
 6. Open the PlatformIO serial monitor at `115200` baud.
 
 The firmware scans the I2C bus at startup and checks both common BH1750
-addresses: `0x23` and `0x5C`. It then prints a lux reading once per second.
+addresses: `0x23` and `0x5C`. It samples every five seconds and emits a
+machine-readable `SENSOR_CSV` line alongside the diagnostic output.
 
 The current firmware also initializes and reads the SCD-30, SEN0514/ENS160,
 and both SEN0465 gas sensors. The SCD-30 can take several seconds to produce
@@ -28,6 +29,45 @@ driver on the ATmega328P.
 
 The RedBoard Plus uses the Arduino Uno target. Its Qwiic connector is connected
 to the standard I2C pins: SDA/A4 and SCL/A5.
+
+## Daily Excel-compatible logging
+
+Install the logger dependency once:
+
+```powershell
+py -m pip install -r requirements.txt
+```
+
+With the board connected, upload the latest firmware first, then start the
+logger. For the currently detected board on `COM9`:
+
+```powershell
+& "$HOME\.platformio\penv\Scripts\platformio.exe" run --target upload --upload-port COM9
+py tools\serial_to_excel.py --port COM9
+```
+
+Replace both port examples with the board's actual serial port. Stop any
+PlatformIO serial monitor before uploading or starting the logger because only
+one program can open the serial port at a time.
+
+The logger writes append-only daily CSV files. Start the logger first, then
+open the active CSV in Excel as read-only. The logger opens the CSV with
+Windows shared read/write access, so Excel can view the same file while new
+rows are appended. Excel may require Refresh or reopening the file to display
+rows added after it was opened.
+
+The logger writes `sensor_data_YYMMDD.csv` files to
+`raw_ambient_sensor_data` with the same columns as the existing sensor export:
+`timestamp`, `temp_C`, `humidity_%`, `lux`, `o2_%`, `co2_ppm`, `h2_ppm`,
+`h2_temp_C`, `o2_temp_C`, `aqi`, `tvoc_ppb`, `eco2_ppm`, `sound_raw`, and
+`raw`. A new daily CSV is selected automatically after UTC midnight. If an
+old-schema CSV already exists for the day, it is preserved as
+`sensor_data_YYMMDD.legacy.csv` and a new CSV with the expanded schema is
+started.
+
+The SCD-30 supplies the CSV `temp_C`, `humidity_%`, and `co2_ppm` values. It is
+queried once per five-second sample. The SCD-30 does not measure pressure, so
+there is no pressure column.
 
 ## Next wiring steps
 
